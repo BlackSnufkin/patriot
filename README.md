@@ -12,5 +12,6 @@ The current version supports the following detections:
 - Modified code used in module stomping/overwriting.
 - Various other anomalies.
 
-![image](https://user-images.githubusercontent.com/56411054/178175830-4289dd66-39d8-46c4-bd1d-f31f25baf8fa.png)
+![patriot-p](https://github.com/user-attachments/assets/b2167c05-3714-439a-95a5-c122012df22b)
 
+![patriot-f](https://github.com/user-attachments/assets/7c1b1721-d603-47f6-a124-cc51c8c7c8b2)
