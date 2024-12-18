@@ -567,9 +567,6 @@ int main(int argc, char** argv)
 
         for (auto& process : processList) {
             scannedProcesses++;
-            printf("\n[%d/%d] Scanning PID: %d (%ws)\n",
-                scannedProcesses, totalProcesses,
-                process.pid, process.processName.c_str());
 
             ScanProc(process);
 
