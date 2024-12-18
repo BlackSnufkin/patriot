@@ -8,40 +8,41 @@
 #include "patriot.h"
 
 // Constructor
+// Constructor
 PEFile::PEFile()
 {
     ZeroMemory(&dosHeader, sizeof(dosHeader));
     ZeroMemory(&ntHeader, sizeof(ntHeader));
     bHeaderLoaded = false;
-    bDotNet       = false;
-    pNtHeader32   = 0;
-    pid           = 0;
+    bDotNet = false;
+    pNtHeader32 = 0;
+    pid = 0;
 }
 
+
 void PEFile::NewFinding(const std::string level, const std::string subtype,
-                        const std::string details)
+    const std::string details)
 {
     auto finding = std::make_unique<Finding>();
 
-    finding->pid         = pid;
+    finding->pid = pid;
     finding->processName = processName;
-    finding->level       = level;
-    finding->type        = "peIntegrity";
-    finding->details     = details;
-    finding->moduleInfo  = moduleInfo;
+    finding->level = level;
+    finding->type = "peIntegrity";
+    finding->details = details;
+    finding->moduleInfo = moduleInfo;
 
     Findings.push_back(std::move(finding));
 }
 
 bool PEFile::ParseHeader()
 {
-    // ToDo errors here should be findings
-    bool status                         = true;
-    char* pBuf                          = &headerBuf[0];
-    SIZE_T bufSz                        = headerBuf.size();
-    IMAGE_NT_HEADERS64* pNtHeader       = 0;
+    bool status = true;
+    char* pBuf = &headerBuf[0];
+    SIZE_T bufSz = headerBuf.size();
+    IMAGE_NT_HEADERS64* pNtHeader = 0;
     IMAGE_DATA_DIRECTORY* pDirectoryCOM = 0;
-    IMAGE_SECTION_HEADER* pSection      = 0;
+    IMAGE_SECTION_HEADER* pSection = 0;
 
     if (headerBuf.size() < sizeof(dosHeader))
     {
@@ -54,8 +55,9 @@ bool PEFile::ParseHeader()
     pNtHeader = (IMAGE_NT_HEADERS64*)(pBuf + dosHeader.e_lfanew);
     if (InvalidPtr(pBuf, bufSz, pNtHeader, sizeof(IMAGE_NT_HEADERS64)))
     {
-        NewFinding("suspect", "ntHeaderPtr",
-                   std::format("Invalid NtHeader Ptr {:016x}", (DWORD_PTR)pNtHeader));
+        char details[256];
+        sprintf_s(details, sizeof(details), "Invalid NtHeader Ptr %016llx", (DWORD64)pNtHeader);
+        NewFinding("suspect", "ntHeaderPtr", details);
         CleanupError();
     }
 
@@ -85,9 +87,11 @@ bool PEFile::ParseHeader()
 
     if (InvalidPtr(pBuf, bufSz, pSection, sizeof(*pSection) * ntHeader.FileHeader.NumberOfSections))
     {
-        NewFinding("suspect", "ntSectionPtr",
-                   std::format("Invalid section header pointer {:016x} * {}", (DWORD_PTR)pSection,
-                               ntHeader.FileHeader.NumberOfSections));
+        char details[256];
+        sprintf_s(details, sizeof(details),
+            "Invalid section header pointer %016llx * %d",
+            (DWORD64)pSection, ntHeader.FileHeader.NumberOfSections);
+        NewFinding("suspect", "ntSectionPtr", details);
         CleanupError();
     }
 
@@ -95,10 +99,11 @@ bool PEFile::ParseHeader()
     {
         if (pSection->Characteristics & IMAGE_SCN_MEM_EXECUTE & IMAGE_SCN_MEM_WRITE)
         {
-            NewFinding(
-                "suspect", "rwxCodeSection",
-                std::format("RWX Code section: {}{}{}{}{}", pSection->Name[0], pSection->Name[1],
-                            pSection->Name[2], pSection->Name[3], pSection->Name[4]));
+            char details[256];
+            sprintf_s(details, sizeof(details), "RWX Code section: %c%c%c%c%c",
+                pSection->Name[0], pSection->Name[1], pSection->Name[2],
+                pSection->Name[3], pSection->Name[4]);
+            NewFinding("suspect", "rwxCodeSection", details);
         }
         pSection++;
     }
@@ -118,8 +123,8 @@ bool PEFile::LoadHeaderFromDisk(const std::wstring filePathNt)
     HANDLE hFile = 0;
     DWORD dwRead = 0;
     UNICODE_STRING filePath;
-    OBJECT_ATTRIBUTES oa = {0};
-    IO_STATUS_BLOCK iosb = {0};
+    OBJECT_ATTRIBUTES oa = { 0 };
+    IO_STATUS_BLOCK iosb = { 0 };
     RtlInitUnicodeString(&filePath, filePathNt.c_str());
     InitializeObjectAttributes(&oa, &filePath, OBJ_CASE_INSENSITIVE, 0, 0);
 
@@ -132,7 +137,7 @@ bool PEFile::LoadHeaderFromDisk(const std::wstring filePathNt)
 
     retVal =
         NtCreateFile(&hFile, FILE_GENERIC_READ | SYNCHRONIZE, &oa, &iosb, 0, 0, FILE_SHARE_READ,
-                     FILE_OPEN, FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT, 0, 0);
+            FILE_OPEN, FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT, 0, 0);
     if (retVal < 0)
     {
         Log(warning, "[!] Error opening: %ws. ntstatus: %x\n", filePathNt.c_str(), retVal);
@@ -160,7 +165,7 @@ Cleanup:
 
 bool PEFile::LoadHeaderFromMemory(HANDLE hProcess, DWORD_PTR moduleBase)
 {
-    bool status      = true;
+    bool status = true;
     SIZE_T bytesRead = 0;
 
     if (bHeaderLoaded)
@@ -171,7 +176,7 @@ bool PEFile::LoadHeaderFromMemory(HANDLE hProcess, DWORD_PTR moduleBase)
     headerBuf.resize(0x1000);
 
     if (!ReadProcessMemory(hProcess, (void*)moduleBase, &headerBuf[0], headerBuf.size(),
-                           &bytesRead) ||
+        &bytesRead) ||
         bytesRead != headerBuf.size())
     {
         Log(warning, "[!] Error reading module header: %llx, last error: %d", moduleBase,
@@ -186,6 +191,8 @@ bool PEFile::LoadHeaderFromMemory(HANDLE hProcess, DWORD_PTR moduleBase)
 Cleanup:
     return status;
 }
+
+
 
 void UpConvertNtHeader(IMAGE_NT_HEADERS64& ntHeader)
 {
@@ -305,20 +312,21 @@ bool PEFile::ValidateIntegrity(PEFile& peDisk, PEFile& peMem, Process& process)
         Log(debug, "Module: %ws, +X Region: %p\n", peMem.moduleInfo->modulePathNt.c_str(),
             pMbi->BaseAddress);
 
-        char* pBuf                     = &peMem.headerBuf[0];
-        SIZE_T bufSz                   = peMem.headerBuf.size();
-        IMAGE_NT_HEADERS64* pNtHeader  = (IMAGE_NT_HEADERS64*)(pBuf + peMem.dosHeader.e_lfanew);
+        char* pBuf = &peMem.headerBuf[0];
+        SIZE_T bufSz = peMem.headerBuf.size();
+        IMAGE_NT_HEADERS64* pNtHeader = (IMAGE_NT_HEADERS64*)(pBuf + peMem.dosHeader.e_lfanew);
         PIMAGE_SECTION_HEADER pSection = IMAGE_FIRST_SECTION(pNtHeader);
-        bool bFoundSection             = false;
-        DWORD totalSectionSize         = 0;
-        SIZE_T attributedSize          = 0;
-        SIZE_T unsharedSize            = 0;
+        bool bFoundSection = false;
+        DWORD totalSectionSize = 0;
+        SIZE_T attributedSize = 0;
+        SIZE_T unsharedSize = 0;
+
         if (InvalidPtr(pBuf, bufSz, pSection,
-                       sizeof(*pSection) * peMem.ntHeader.FileHeader.NumberOfSections))
+            sizeof(*pSection) * peMem.ntHeader.FileHeader.NumberOfSections))
         {
-            peMem.NewFinding(
-                "suspect", "ntSectionHeader",
-                std::format("Invalid section header pointer", (DWORD_PTR)pMbi->BaseAddress));
+            char details[256];
+            sprintf_s(details, sizeof(details), "Invalid section header pointer");
+            peMem.NewFinding("suspect", "ntSectionHeader", details);
             CleanupError();
         }
 
@@ -379,18 +387,21 @@ bool PEFile::ValidateIntegrity(PEFile& peDisk, PEFile& peMem, Process& process)
 
         if (!bFoundSection)
         {
-            peMem.NewFinding(
-                "suspect", "executableSections",
-                std::format("Executable region {:016x} does not aligned with section header",
-                            (DWORD_PTR)pMbi->BaseAddress));
+            char details[256];
+            sprintf_s(details, sizeof(details),
+                "Executable region %016llx does not aligned with section header",
+                (DWORD64)pMbi->BaseAddress);
+            peMem.NewFinding("suspect", "executableSections", details);
         }
 
         if (UnsharedSize(process.hProcess, pMbi->BaseAddress, pMbi->RegionSize, unsharedSize) &&
             unsharedSize > 0x1000)
         {
-            peMem.NewFinding("suspect", "modifiedCode",
-                             std::format("Executable region {:016x} likely modified",
-                                         (DWORD_PTR)pMbi->BaseAddress));
+            char details[256];
+            sprintf_s(details, sizeof(details),
+                "Executable region %016llx likely modified",
+                (DWORD64)pMbi->BaseAddress);
+            peMem.NewFinding("suspect", "modifiedCode", details);
         }
     }
 
