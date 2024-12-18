@@ -3,7 +3,7 @@
 
 Small research project for detecting various kinds of in-memory stealth techniques. 
 
-Download the latest release [here](https://github.com/joe-desimone/patriot/releases/tag/v0.3).
+Download the latest release [here](https://github.com/BlackSnufkin/patriot/releases/download/v0.3.1/Patriot.zip).
 
 The current version supports the following detections:
 - Suspicious CONTEXT structures pointing to VirtualProtect functions. (Targets [research](https://suspicious.actor/2022/05/05/mdsec-nighthawk-study.html) by Austin Hudson [Foliage](https://github.com/y11en/FOLIAGE/tree/master/source) and [Ekko](https://github.com/Cracked5pider/Ekko) by Cracked5pider).
